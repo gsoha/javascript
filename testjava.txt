@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Domain Global LDM Size</title>
+  <link href="res/bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="css/jquery.dynatable.css" rel="stylesheet">
+  <link href="css/dashboard.css" rel="stylesheet">
+  <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+  <script src="res/jquery.min.js"></script>
+  <script src="res/jspkg-archive/jquery.dynatable.js"></script>
+  <script src="res/bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+  <script src="res/js.cookie.js"></script>
+  <script src="res/echarts-4.6.0-dist/echarts.common.min.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/sitenav.js"></script>
+</head>
+
+<body>
+  <div id="navbar"></div>
+
+  <div class="container container-resizable">
+    <div class="row">
+      <div class="col-xs-12">
+        <h1 class="page-header"> Domain Global LDM Size</h1>
+        <p class="lead">
+          LDM size calculated per Domain(/proj/lte_twh/tools/bb_characteristics/latest/domainProfiles/category_dict.json) for EMCA build done by Youbuild. 
+        </p>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-12">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">Selection</h3>
+          </div>
+          <div class="panel-body">
+            <form class="form-horizontal">
+              <div class="form-group">
+                <label for="timeSpanSelector" class="col-sm-1 control-label">Time span</label>
+                <div class="col-sm-4">
+                  <select id="timeSpanSelector" class="form-control"></select>
+                </div>
+                <label for="selectProductName" class="col-sm-1 control-label">Product name</label>
+                <div class="col-sm-4">
+                  <select id="selectProductName" class="form-control"></select>
+                </div>
+              </div>
+            </form>
+            <form class="form-horizontal">
+              <div class="form-group">
+                <label for="selectProductNumber" class="col-sm-1 control-label">Product number</label>
+                <div class="col-sm-4">
+                  <select id="selectProductNumber" class="form-control"></select>
+                </div>
+                <label for="selectBranch" class="col-sm-1 control-label">Branch</label>
+                <div class="col-sm-4">
+                  <select id="selectBranch" class="form-control"></select>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-xs-12">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">Global LDM Size Per Domain</h3>
+          </div>
+          <div class="panel-body">
+            <center>
+              <div id="chartDomainldmSize" style="width:100%;height:400px;"></div>
+            </center>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
+    <script>
+    var currentPeriod = 'P1Y';
+    var currentTimeSpan = Params.get("timespan") || Cookies.get("timespan") || "month";
+    var currentProductName = Params.get("productName") || Cookies.get("productName") || "";
+    var currentProductNumber = Params.get("productNumber") || Cookies.get("productNumber") || "";
+    var currentBranch = Params.get("branch") || Cookies.get("branch") || "";
+    var timeSpanSelector;
+
+    function setTimeSpan(timeSpan) {
+      clearTimeSpan();
+      currentTimeSpan = timeSpan;
+      Params.set("timespan", timeSpan);
+      Cookies.set("timespan", timeSpan);
+
+      var storage = new Storage({
+        url: "https://metrics-storage.cmdservices.caas.npee.gic.ericsson.se/v1/query/aggregation",
+        request: {
+          "groupBy": [{ "field": "productName" }],
+          "queries": [{
+            "name": "nrOfBuilds",
+            "aggregation": "CNT",
+            "field": "_time",
+            "datastore": "lratci-globalldm-monitoring"
+          }],
+          "filter": timeSpanSelector.getFilter(),
+          "timezone": "UTC"
+        },
+      });
+
+      var selectorProductName = new Selector(storage, {
+        id: 'selectProductName',
+        field: 'productName',
+        default: currentProductName,
+        onChange: function (productName) {
+          setProductName(productName);
+        }
+      });
+    }
+
+    function clearTimeSpan() {
+      setEmpty(['selectProductName']);
+      clearProductName();
+    }
+
+    function getTimeSpanAndProjectNameFilter() {
+      var filter = timeSpanSelector.getFilter();
+      if (currentProductName != '') {
+        filter['filters'].push({
+          "field": "productName",
+          "operator": "EQ",
+          "value": currentProductName
+        });
+      }
+      return filter;
+    }
+
+    function setProductName(productName) {
+      clearProductName();
+      currentProductName = productName;
+      Params.set("productName", productName);
+      Cookies.set("productName", productName);
+
+      var storage = new Storage({
+        url: "https://metrics-storage.cmdservices.caas.npee.gic.ericsson.se/v1/query/aggregation",
+        request: {
+          "groupBy": [{ "field": "productNumber" }],
+          "queries": [{
+            "name": "nrOfBuilds",
+            "aggregation": "CNT",
+            "field": "_time",
+            "datastore": "lratci-globalldm-monitoring"
+          }],
+          "filter": getTimeSpanAndProjectNameFilter(),
+          "timezone": "UTC"
+        },
+      });
+
+      var selectorProductNumber = new Selector(storage, {
+        id: 'selectProductNumber',
+        field: 'productNumber',
+        default: currentProductNumber,
+        onChange: function (productNumber) {
+          setProductNumber(productNumber);
+        }
+      });
+    }
+
+    function clearProductName() {
+      setEmpty(['selectProductNumber']);
+      clearProductNumber();
+    }
+
+    function getTimeSpanAndProjectNumberFilter() {
+      var filter = timeSpanSelector.getFilter();
+      if (currentProductNumber != '') {
+        filter['filters'].push({
+          "field": "productNumber",
+          "operator": "EQ",
+          "value": currentProductNumber
+        });
+      }
+      return filter;
+    }
+
+    function setProductNumber(productNumber) {
+      clearProductNumber();
+      currentProductNumber = productNumber;
+      Params.set("productNumber", productNumber);
+      Cookies.set("productNumber", productNumber);
+
+      var storage = new Storage({
+        url: "https://metrics-storage.cmdservices.caas.npee.gic.ericsson.se/v1/query/aggregation",
+        request: {
+          "groupBy": [{ "field": "branch" }],
+          "queries": [{
+            "name": "nrOfBuilds",
+            "aggregation": "CNT",
+            "field": "_time",
+            "datastore": "lratci-globalldm-monitoring"
+          }],
+          "filter": getTimeSpanAndProjectNumberFilter(),
+          "timezone": "UTC"
+        },
+      });
+
+      var selectorBranch = new Selector(storage, {
+        id: 'selectBranch',
+        field: 'branch',
+        default: currentBranch,
+        onChange: function (branch) {
+          setBranch(branch);
+        }
+      });
+    }
+
+    function clearProductNumber() {
+      setEmpty(['selectBranch']);
+      clearBranch();
+    }
+
+    function setBranch(branch) {
+      clearBranch();
+      currentBranch = branch;
+      Params.set("branch", branch);
+      Cookies.set("branch", branch);
+
+      var request = {
+        "store": "lratci-globalldm-monitoring",
+        "page": 1,
+        "pageSize": 10000,
+        "dateRange": { "period": currentPeriod, "dateField": "_time", "timeZone": "GMT" },
+        "sortDescriptions": [{ "field": "version", "sortOrder": "ASC" }],
+        "filter": {
+          "logic": "AND",
+          "field": "productName",
+          "operator": "EQ",
+          "value": currentProductName,
+          "filters": [
+            {
+              "field": "version",
+              "operator": "STARTSWITH",
+              "value": "R",
+              "logic": "AND",
+              "filters": []
+            },
+            timeSpanSelector.getFilterElement()
+          ]
+        }
+      };
+      
+      if (currentProductNumber != '' && currentProductNumber != 'ALL') {
+        request['filter']['filters'].push({
+          "field": "productNumber",
+          "operator": "EQ",
+          "value": currentProductNumber,
+          "logic": "AND",
+          "filters": []
+        });
+      }
+
+
+      if (currentBranch != '') {
+        request['filter']['filters'].push({
+          "field": "branch",
+          "operator": "EQ",
+          "value": currentBranch,
+          "logic": "AND",
+          "filters": []
+        });
+      }
+
+     var storage = new Storage({
+        url: "https://metrics-storage.cmdservices.caas.npee.gic.ericsson.se/v1/query",
+        request: request,
+       processData: function (storage, results) {
+          var upMap = {};
+          $.each(results, function (index, result) {
+            if (!(result.version in upMap)){
+              upMap[result.version] = [];
+            }
+            upMap[result.version].push(result);
+          });
+          results.splice(0, results.length)
+          $.each(upMap, function (version, measurements) {
+            results.push({"version":version, "measurements":measurements});
+          });
+        }
+      });
+     
+      var fillSeries = function (settings, result, series) {
+        $.each(result.measurements, function (index, measurement) {
+          if (!series.hasOwnProperty(measurement.domain)) { series[measurement.domain] = []; }
+          var ldmsize = measurement[settings.field];
+          series[measurement.domain].push(ldmsize);
+        });
+      };
+
+
+      var measFormatter = function (params, ticket, callback) {
+        var dataIndex = params[0]["dataIndex"];
+        var dataEntry = storage.data.result[dataIndex];
+        var res = 'UP: ' + dataEntry['version'];
+        res += '<span style="font-size:12px">';
+        for (var i = 0, l = params.length; i < l; i++) {
+          res += '<br/><span style="display:inline-block;margin-right:5px;border-radius:10px;width:9px;height:9px;background-color:' +
+            params[i]["color"] + '"></span>' + params[i].seriesName + ' : ' + params[i].value;
+        }
+        res += '</span>';
+        return res;
+      }
+      
+      var chartOptionsSize = {
+        animation: false,
+        tooltip: { trigger: 'axis' },
+        dataZoom: { show: true, realtime: true, start: 0, end: 100 },
+        xAxis: [{
+          type: 'category',
+          boundaryGap: false
+        }],
+        yAxis: [{
+          type: 'value',
+          name: "ldmsize"
+        }],
+        yTitle: "LDM Size Per Domain"
+      };
+
+      var chartDomainldmSize = new Chart(storage, {
+        id: "chartDomainldmSize",
+        options: chartOptionsSize,
+        useFormatter: 'dateTime',
+        xColumn: "version",
+        fillSeries: fillSeries,
+        field: "ldmsize",
+        group: "version"
+      });
+
+    
+    }
+    function clearBranch() {
+      setEmpty(['chartDomainldmSize']);
+      clearTest();
+    }
+
+    function clearTest() {
+      setLoading(['chartDomainldmSize']);
+    }
+      $(document).ready(function () {
+      timeSpanSelector = new TimeSpanSelector({
+        id: 'timeSpanSelector',
+        default: currentTimeSpan,
+        onChange: setTimeSpan
+      });
+      setTimeSpan(currentTimeSpan);
+    });
+</script>
+</body>
+</html>
+
